@@ -1,13 +1,17 @@
 package view
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/golang/glog"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/jeffbstewart/powerwall_prometheus_exporter/internal/expo"
 	"github.com/jeffbstewart/powerwall_prometheus_exporter/model"
 	"github.com/jeffbstewart/powerwall_prometheus_exporter/powerwall"
-	"github.com/prometheus/client_golang/prometheus"
-	"strconv"
-	"time"
 )
 
 // Options describes information needed to export metrics to Prometheus.
@@ -32,204 +36,108 @@ const (
 	kApparentPower = "apparentPower"
 )
 
+// fqName joins namespace, subsystem, and name with underscores,
+// skipping empty parts, the way client_golang builds metric names.
+func fqName(namespace, subsystem, name string) string {
+	var parts []string
+	for _, p := range []string{namespace, subsystem, name} {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return strings.Join(parts, "_")
+}
+
 func New(fixed *model.FixedInfo, opts Options) (*PrometheusCounters, error) {
-	ss, ns := opts.Subsystem, opts.Namespace
+	reg := expo.NewRegistry()
+	var err error
+	gauge := func(name, help string) *expo.Gauge {
+		if err != nil {
+			return nil
+		}
+		var g *expo.Gauge
+		g, err = reg.NewGauge(fqName(opts.Namespace, opts.Subsystem, name), help)
+		return g
+	}
+	gaugeVec := func(name, help string, labelNames ...string) *expo.GaugeVec {
+		if err != nil {
+			return nil
+		}
+		var g *expo.GaugeVec
+		g, err = reg.NewGaugeVec(fqName(opts.Namespace, opts.Subsystem, name), help, labelNames...)
+		return g
+	}
+	counterVec := func(name, help string, labelNames ...string) *expo.CounterVec {
+		if err != nil {
+			return nil
+		}
+		var c *expo.CounterVec
+		c, err = reg.NewCounterVec(fqName(opts.Namespace, opts.Subsystem, name), help, labelNames...)
+		return c
+	}
 	r := &PrometheusCounters{
-		powerwallChargePercent: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "powerwall_charge_percent",
-			Help:      "percent of nominal powerwall power available for supply generation",
-		}),
-		nominalSystemEnergykWh: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "nominal_system_energy_kWh",
-			Help:      "nominal rated energy that can be delivered by the inverter.",
-		}),
-		nominalSystemPowerkW: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "nominal_system_power_kW",
-			Help:      "nominal rated power that can be delivered by the inverter.",
-		}),
-		numPowerwalls: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "num_powerwalls",
-			Help:      "Number of powerwall battery systems managed by the energy gateway",
-		}),
-		totalSolarRatingWatts: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "total_solar_rating_W",
-			Help:      "rated total power output of all solar arrays connected to the inverter",
-		}),
-		backupMode: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "operating_in_backup_only_mode",
-			Help:      "if 1, the powerwalls are only consumed for backup power",
-		}),
-		selfConsumptionMode: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "operating_in_self_consumption_mode",
-			Help:      "if 1, the powerwalls cycle between charging and discharing",
-		}),
-		backupReservePercent: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "backup_reserve_percent",
-			Help:      "Percent of battery capacity not used unless the grid is out",
-		}),
-		uptimeSeconds: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "uptime_seconds",
-			Help:      "Runtime of the Tesla energy gateway",
-		}),
-		majorVersion: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "major_version",
-			Help:      "The major version of the software in the Tesla energy gateway.  In version 1.2.3, the major version is the 1",
-		}),
-		minorVersion: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "minor_version",
-			Help:      "The minor version of the software in the Telsa energy gateway.  In version 1.2.3, the minor version is the 2",
-		}),
-		releaseVersion: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "release_version",
-			Help:      "The release version of the software in the Tesla energy gateway.  In version 1.2.3, the release version is the 3",
-		}),
-		flattenedVersion: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "flattened_version",
-			Help:      "The version of the software in the Tesla energy gateway, flattened.  Version 10.12.7 would be 10127",
-		}),
-		networkActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "network_active",
-			Help:      "if 1, the given network interface appears to be usable",
-		}, []string{kInterface}),
-		networkEnabled: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "network_enabled",
-			Help:      "if 1, the given network interface is administratively enabled",
-		}, []string{kInterface}),
-		networkPrimary: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "network_primary",
-			Help:      "if 1, the given network interface is the preferred interface",
-		}, []string{kInterface}),
-		networkSignalStrength: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "network_signal_strength",
-			Help:      "signal to noise ratio in dB for the interface.  Only populated for cellular",
-		}, []string{kInterface}),
-		siteMasterRunning: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "sitemaster_running",
-			Help:      "if 1, the site master is running",
-		}),
-		siteMasterConnectedToTesla: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "site_master_connected_to_tesla",
-			Help:      "if 1, the site master can communicate with Tesla",
-		}),
-		siteMasterSupplyingPower: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "site_master_supplying_power",
-			Help:      "if 1, the site master is supplying power instead of the grid",
-		}),
-		instantPower: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "instant_power",
-			Help:      "power measured by the given meter at a moment in time",
-		}, []string{kMeter, kPowerType}),
-		cumulativePower: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "cumulative_power",
-			Help:      "cumulative power measured over the lifetime of the given meter, in units of kWh",
-		}, []string{kMeter, kDirection}),
-		instantAverageVoltage: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "instant_average_voltage",
-			Help:      "electrical potential measured by the given meter at a moment in time, in units of volts",
-		}, []string{kMeter}),
-		instantTotalCurrent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "instant_total_current_amps",
-			Help:      "electrical current measured by the given meter at a moment in time, in units of amperes",
-		}, []string{kMeter}),
-		gridConnected: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "grid_connected",
-			Help:      "if 1, the grid is available to supply power",
-		}),
-		gridActive: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: ss,
-			Name:      "grid_active",
-			Help:      "if 1, the grid is actively supplying power",
-		}),
+		registry: reg,
+		powerwallChargePercent: gauge("powerwall_charge_percent",
+			"percent of nominal powerwall power available for supply generation"),
+		nominalSystemEnergykWh: gauge("nominal_system_energy_kWh",
+			"nominal rated energy that can be delivered by the inverter."),
+		nominalSystemPowerkW: gauge("nominal_system_power_kW",
+			"nominal rated power that can be delivered by the inverter."),
+		numPowerwalls: gauge("num_powerwalls",
+			"Number of powerwall battery systems managed by the energy gateway"),
+		totalSolarRatingWatts: gauge("total_solar_rating_W",
+			"rated total power output of all solar arrays connected to the inverter"),
+		backupMode: gauge("operating_in_backup_only_mode",
+			"if 1, the powerwalls are only consumed for backup power"),
+		selfConsumptionMode: gauge("operating_in_self_consumption_mode",
+			"if 1, the powerwalls cycle between charging and discharing"),
+		backupReservePercent: gauge("backup_reserve_percent",
+			"Percent of battery capacity not used unless the grid is out"),
+		uptimeSeconds: gauge("uptime_seconds",
+			"Runtime of the Tesla energy gateway"),
+		majorVersion: gauge("major_version",
+			"The major version of the software in the Tesla energy gateway.  In version 1.2.3, the major version is the 1"),
+		minorVersion: gauge("minor_version",
+			"The minor version of the software in the Telsa energy gateway.  In version 1.2.3, the minor version is the 2"),
+		releaseVersion: gauge("release_version",
+			"The release version of the software in the Tesla energy gateway.  In version 1.2.3, the release version is the 3"),
+		flattenedVersion: gauge("flattened_version",
+			"The version of the software in the Tesla energy gateway, flattened.  Version 10.12.7 would be 10127"),
+		networkActive: gaugeVec("network_active",
+			"if 1, the given network interface appears to be usable", kInterface),
+		networkEnabled: gaugeVec("network_enabled",
+			"if 1, the given network interface is administratively enabled", kInterface),
+		networkPrimary: gaugeVec("network_primary",
+			"if 1, the given network interface is the preferred interface", kInterface),
+		networkSignalStrength: gaugeVec("network_signal_strength",
+			"signal to noise ratio in dB for the interface.  Only populated for cellular", kInterface),
+		siteMasterRunning: gauge("sitemaster_running",
+			"if 1, the site master is running"),
+		siteMasterConnectedToTesla: gauge("site_master_connected_to_tesla",
+			"if 1, the site master can communicate with Tesla"),
+		siteMasterSupplyingPower: gauge("site_master_supplying_power",
+			"if 1, the site master is supplying power instead of the grid"),
+		instantPower: gaugeVec("instant_power",
+			"power measured by the given meter at a moment in time", kMeter, kPowerType),
+		cumulativePower: counterVec("cumulative_power",
+			"cumulative power measured over the lifetime of the given meter, in units of kWh", kMeter, kDirection),
+		instantAverageVoltage: gaugeVec("instant_average_voltage",
+			"electrical potential measured by the given meter at a moment in time, in units of volts", kMeter),
+		instantTotalCurrent: gaugeVec("instant_total_current_amps",
+			"electrical current measured by the given meter at a moment in time, in units of amperes", kMeter),
+		gridConnected: gauge("grid_connected",
+			"if 1, the grid is available to supply power"),
+		gridActive: gauge("grid_active",
+			"if 1, the grid is actively supplying power"),
+	}
+	if err != nil {
+		return nil, err
 	}
 	r.nominalSystemEnergykWh.Set(fixed.NominalSystemEnergykWh)
 	r.nominalSystemPowerkW.Set(fixed.NominalSystemPowerkW)
 	r.numPowerwalls.Set(float64(fixed.NumPowerwalls))
 	r.totalSolarRatingWatts.Set(float64(fixed.TotalSolarPowerRatingWatts))
 
-	cols := []prometheus.Collector{
-		r.powerwallChargePercent,
-		r.nominalSystemEnergykWh,
-		r.nominalSystemPowerkW,
-		r.numPowerwalls,
-		r.totalSolarRatingWatts,
-		r.backupMode,
-		r.selfConsumptionMode,
-		r.backupReservePercent,
-		r.uptimeSeconds,
-		r.majorVersion,
-		r.minorVersion,
-		r.releaseVersion,
-		r.flattenedVersion,
-		r.networkActive,
-		r.networkEnabled,
-		r.networkPrimary,
-		r.networkSignalStrength,
-		r.siteMasterRunning,
-		r.siteMasterConnectedToTesla,
-		r.siteMasterSupplyingPower,
-		r.instantPower,
-		r.cumulativePower,
-		r.instantAverageVoltage,
-		r.instantTotalCurrent,
-		r.gridConnected,
-		r.gridActive,
-	}
-	for _, c := range cols {
-		if err := prometheus.Register(c); err != nil {
-			return nil, err
-		}
-	}
 	r.priorCumulative = make(map[model.MeterType]map[string]float64)
 	for _, mt := range []model.MeterType{
 		model.Total,
@@ -243,33 +151,51 @@ func New(fixed *model.FixedInfo, opts Options) (*PrometheusCounters, error) {
 }
 
 type PrometheusCounters struct {
-	powerwallChargePercent     prometheus.Gauge
-	nominalSystemEnergykWh     prometheus.Gauge
-	nominalSystemPowerkW       prometheus.Gauge
-	numPowerwalls              prometheus.Gauge
-	totalSolarRatingWatts      prometheus.Gauge
-	backupMode                 prometheus.Gauge
-	selfConsumptionMode        prometheus.Gauge
-	backupReservePercent       prometheus.Gauge
-	uptimeSeconds              prometheus.Gauge
-	majorVersion               prometheus.Gauge
-	minorVersion               prometheus.Gauge
-	releaseVersion             prometheus.Gauge
-	flattenedVersion           prometheus.Gauge
-	networkActive              *prometheus.GaugeVec
-	networkEnabled             *prometheus.GaugeVec
-	networkPrimary             *prometheus.GaugeVec
-	networkSignalStrength      *prometheus.GaugeVec
-	siteMasterRunning          prometheus.Gauge
-	siteMasterConnectedToTesla prometheus.Gauge
-	siteMasterSupplyingPower   prometheus.Gauge
-	instantPower               *prometheus.GaugeVec
+	registry                   *expo.Registry
+	powerwallChargePercent     *expo.Gauge
+	nominalSystemEnergykWh     *expo.Gauge
+	nominalSystemPowerkW       *expo.Gauge
+	numPowerwalls              *expo.Gauge
+	totalSolarRatingWatts      *expo.Gauge
+	backupMode                 *expo.Gauge
+	selfConsumptionMode        *expo.Gauge
+	backupReservePercent       *expo.Gauge
+	uptimeSeconds              *expo.Gauge
+	majorVersion               *expo.Gauge
+	minorVersion               *expo.Gauge
+	releaseVersion             *expo.Gauge
+	flattenedVersion           *expo.Gauge
+	networkActive              *expo.GaugeVec
+	networkEnabled             *expo.GaugeVec
+	networkPrimary             *expo.GaugeVec
+	networkSignalStrength      *expo.GaugeVec
+	siteMasterRunning          *expo.Gauge
+	siteMasterConnectedToTesla *expo.Gauge
+	siteMasterSupplyingPower   *expo.Gauge
+	instantPower               *expo.GaugeVec
 	priorCumulative            map[model.MeterType]map[string] /* direction*/ float64
-	cumulativePower            *prometheus.CounterVec
-	instantAverageVoltage      *prometheus.GaugeVec
-	instantTotalCurrent        *prometheus.GaugeVec
-	gridConnected              prometheus.Gauge
-	gridActive                 prometheus.Gauge
+	cumulativePower            *expo.CounterVec
+	instantAverageVoltage      *expo.GaugeVec
+	instantTotalCurrent        *expo.GaugeVec
+	gridConnected              *expo.Gauge
+	gridActive                 *expo.Gauge
+}
+
+// Handler serves the current metric values in the Prometheus text
+// exposition format.
+func (p *PrometheusCounters) Handler() http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		var buf bytes.Buffer
+		if err := p.registry.Render(&buf); err != nil {
+			log.Printf("ERROR: rendering metrics: %v", err)
+			rw.WriteHeader(500)
+			return
+		}
+		rw.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		if _, err := rw.Write(buf.Bytes()); err != nil {
+			log.Printf("ERROR: writing metrics response: %v", err)
+		}
+	})
 }
 
 func (p *PrometheusCounters) Update(m *model.TeslaEnergyGatewayMetrics) error {
@@ -305,47 +231,40 @@ func (p *PrometheusCounters) Update(m *model.TeslaEnergyGatewayMetrics) error {
 		return 0
 	}
 	for _, net := range m.NetworkInterfaces {
-		labels := prometheus.Labels{kInterface: net.Transport.String()}
-		p.networkEnabled.With(labels).Set(boolToFloat(net.Enabled))
-		p.networkActive.With(labels).Set(boolToFloat(net.Active))
-		p.networkPrimary.With(labels).Set(boolToFloat(net.Primary))
-		p.networkSignalStrength.With(labels).Set(float64(net.SignalStrength))
+		iface := net.Transport.String()
+		p.networkEnabled.Set(boolToFloat(net.Enabled), iface)
+		p.networkActive.Set(boolToFloat(net.Active), iface)
+		p.networkPrimary.Set(boolToFloat(net.Primary), iface)
+		p.networkSignalStrength.Set(float64(net.SignalStrength), iface)
 	}
 	p.siteMasterRunning.Set(boolToFloat(m.SiteMasterRunning))
 	p.siteMasterConnectedToTesla.Set(boolToFloat(m.SiteMasterConnectedToTesla))
 	p.siteMasterSupplyingPower.Set(boolToFloat(m.SiteMasterSupplyingPower))
 	for mt, meter := range m.Meters {
-		p.instantPower.With(prometheus.Labels{kMeter: mt.String(), kPowerType: kTruePower}).Set(meter.InstantPower)
-		p.instantPower.With(prometheus.Labels{kMeter: mt.String(), kPowerType: kReactivePower}).Set(meter.InstantReactivePower)
-		p.instantPower.With(prometheus.Labels{kMeter: mt.String(), kPowerType: kApparentPower}).Set(meter.InstantApparentPower)
-		labels := prometheus.Labels{kMeter: mt.String()}
-		p.instantAverageVoltage.With(labels).Set(meter.InstantAverageVoltage)
-		p.instantTotalCurrent.With(labels).Set(meter.InstantTotalCurrent)
+		p.instantPower.Set(meter.InstantPower, mt.String(), kTruePower)
+		p.instantPower.Set(meter.InstantReactivePower, mt.String(), kReactivePower)
+		p.instantPower.Set(meter.InstantApparentPower, mt.String(), kApparentPower)
+		p.instantAverageVoltage.Set(meter.InstantAverageVoltage, mt.String())
+		p.instantTotalCurrent.Set(meter.InstantTotalCurrent, mt.String())
 		prior := p.priorCumulative[mt][kTo]
 		delta := meter.CumulativeEnergyTo - prior
 		p.priorCumulative[mt][kTo] = meter.CumulativeEnergyTo
 		const epsilon = 0.00001
 		if delta < 0 {
 			if delta < -epsilon {
-				glog.Warningf("Meter %s cumulative energy to decreased: %.4f", mt, delta)
+				log.Printf("WARN: Meter %s cumulative energy to decreased: %.4f", mt, delta)
 			}
 		} else {
-			p.cumulativePower.With(prometheus.Labels{
-				kMeter:     mt.String(),
-				kDirection: kTo,
-			}).Add(delta)
+			p.cumulativePower.Add(delta, mt.String(), kTo)
 		}
 		prior = p.priorCumulative[mt][kFrom]
 		delta = meter.CumulativeEnergyFrom - prior
 		if delta < 0 {
 			if delta < -epsilon {
-				glog.Warningf("Meter %s cumulative energy from decreased: %.4f", mt, delta)
+				log.Printf("WARN: Meter %s cumulative energy from decreased: %.4f", mt, delta)
 			}
 		} else {
-			p.cumulativePower.With(prometheus.Labels{
-				kMeter:     mt.String(),
-				kDirection: kFrom,
-			}).Add(delta)
+			p.cumulativePower.Add(delta, mt.String(), kFrom)
 		}
 		p.priorCumulative[mt][kFrom] = meter.CumulativeEnergyFrom
 	}

@@ -1,0 +1,110 @@
+# HELP tesla_energy_gateway_backup_reserve_percent Percent of battery capacity not used unless the grid is out
+# TYPE tesla_energy_gateway_backup_reserve_percent gauge
+tesla_energy_gateway_backup_reserve_percent 20.5
+# HELP tesla_energy_gateway_cumulative_power cumulative power measured over the lifetime of the given meter, in units of kWh
+# TYPE tesla_energy_gateway_cumulative_power counter
+tesla_energy_gateway_cumulative_power{direction="from",meter="battery"} 5.1248902e+06
+tesla_energy_gateway_cumulative_power{direction="from",meter="load"} 0
+tesla_energy_gateway_cumulative_power{direction="from",meter="site"} 4.74483861e+06
+tesla_energy_gateway_cumulative_power{direction="from",meter="solar"} 3.18193004e+07
+tesla_energy_gateway_cumulative_power{direction="to",meter="battery"} 6.1567809e+06
+tesla_energy_gateway_cumulative_power{direction="to",meter="load"} 2.587310944e+07
+tesla_energy_gateway_cumulative_power{direction="to",meter="site"} 1.246456655e+07
+tesla_energy_gateway_cumulative_power{direction="to",meter="solar"} 1305.7
+# HELP tesla_energy_gateway_flattened_version The version of the software in the Tesla energy gateway, flattened.  Version 10.12.7 would be 10127
+# TYPE tesla_energy_gateway_flattened_version gauge
+tesla_energy_gateway_flattened_version 234403
+# HELP tesla_energy_gateway_grid_active if 1, the grid is actively supplying power
+# TYPE tesla_energy_gateway_grid_active gauge
+tesla_energy_gateway_grid_active 0
+# HELP tesla_energy_gateway_grid_connected if 1, the grid is available to supply power
+# TYPE tesla_energy_gateway_grid_connected gauge
+tesla_energy_gateway_grid_connected 1
+# HELP tesla_energy_gateway_instant_average_voltage electrical potential measured by the given meter at a moment in time, in units of volts
+# TYPE tesla_energy_gateway_instant_average_voltage gauge
+tesla_energy_gateway_instant_average_voltage{meter="battery"} 245.9
+tesla_energy_gateway_instant_average_voltage{meter="load"} 246.1
+tesla_energy_gateway_instant_average_voltage{meter="site"} 246.35
+tesla_energy_gateway_instant_average_voltage{meter="solar"} 246.4
+# HELP tesla_energy_gateway_instant_power power measured by the given meter at a moment in time
+# TYPE tesla_energy_gateway_instant_power gauge
+tesla_energy_gateway_instant_power{meter="battery",powerType="apparentPower"} 2350.09
+tesla_energy_gateway_instant_power{meter="battery",powerType="reactivePower"} 20.5
+tesla_energy_gateway_instant_power{meter="battery",powerType="truePower"} -2350
+tesla_energy_gateway_instant_power{meter="load",powerType="apparentPower"} 1902.35
+tesla_energy_gateway_instant_power{meter="load",powerType="reactivePower"} -180.6
+tesla_energy_gateway_instant_power{meter="load",powerType="truePower"} 1893.75
+tesla_energy_gateway_instant_power{meter="site",powerType="apparentPower"} 845.1
+tesla_energy_gateway_instant_power{meter="site",powerType="reactivePower"} -401.2
+tesla_energy_gateway_instant_power{meter="site",powerType="truePower"} 743.5
+tesla_energy_gateway_instant_power{meter="solar",powerType="apparentPower"} 3500.61
+tesla_energy_gateway_instant_power{meter="solar",powerType="reactivePower"} -50.4
+tesla_energy_gateway_instant_power{meter="solar",powerType="truePower"} 3500.25
+# HELP tesla_energy_gateway_instant_total_current_amps electrical current measured by the given meter at a moment in time, in units of amperes
+# TYPE tesla_energy_gateway_instant_total_current_amps gauge
+tesla_energy_gateway_instant_total_current_amps{meter="battery"} -9.6
+tesla_energy_gateway_instant_total_current_amps{meter="load"} 7.7
+tesla_energy_gateway_instant_total_current_amps{meter="site"} 3.02
+tesla_energy_gateway_instant_total_current_amps{meter="solar"} 14.2
+# HELP tesla_energy_gateway_major_version The major version of the software in the Tesla energy gateway.  In version 1.2.3, the major version is the 1
+# TYPE tesla_energy_gateway_major_version gauge
+tesla_energy_gateway_major_version 23
+# HELP tesla_energy_gateway_minor_version The minor version of the software in the Telsa energy gateway.  In version 1.2.3, the minor version is the 2
+# TYPE tesla_energy_gateway_minor_version gauge
+tesla_energy_gateway_minor_version 44
+# HELP tesla_energy_gateway_network_active if 1, the given network interface appears to be usable
+# TYPE tesla_energy_gateway_network_active gauge
+tesla_energy_gateway_network_active{interface="cellular"} 0
+tesla_energy_gateway_network_active{interface="ethernet"} 1
+tesla_energy_gateway_network_active{interface="wifi"} 0
+# HELP tesla_energy_gateway_network_enabled if 1, the given network interface is administratively enabled
+# TYPE tesla_energy_gateway_network_enabled gauge
+tesla_energy_gateway_network_enabled{interface="cellular"} 0
+tesla_energy_gateway_network_enabled{interface="ethernet"} 1
+tesla_energy_gateway_network_enabled{interface="wifi"} 1
+# HELP tesla_energy_gateway_network_primary if 1, the given network interface is the preferred interface
+# TYPE tesla_energy_gateway_network_primary gauge
+tesla_energy_gateway_network_primary{interface="cellular"} 0
+tesla_energy_gateway_network_primary{interface="ethernet"} 1
+tesla_energy_gateway_network_primary{interface="wifi"} 0
+# HELP tesla_energy_gateway_network_signal_strength signal to noise ratio in dB for the interface.  Only populated for cellular
+# TYPE tesla_energy_gateway_network_signal_strength gauge
+tesla_energy_gateway_network_signal_strength{interface="cellular"} 13
+tesla_energy_gateway_network_signal_strength{interface="ethernet"} 0
+tesla_energy_gateway_network_signal_strength{interface="wifi"} 0
+# HELP tesla_energy_gateway_nominal_system_energy_kWh nominal rated energy that can be delivered by the inverter.
+# TYPE tesla_energy_gateway_nominal_system_energy_kWh gauge
+tesla_energy_gateway_nominal_system_energy_kWh 27
+# HELP tesla_energy_gateway_nominal_system_power_kW nominal rated power that can be delivered by the inverter.
+# TYPE tesla_energy_gateway_nominal_system_power_kW gauge
+tesla_energy_gateway_nominal_system_power_kW 10.8
+# HELP tesla_energy_gateway_num_powerwalls Number of powerwall battery systems managed by the energy gateway
+# TYPE tesla_energy_gateway_num_powerwalls gauge
+tesla_energy_gateway_num_powerwalls 2
+# HELP tesla_energy_gateway_operating_in_backup_only_mode if 1, the powerwalls are only consumed for backup power
+# TYPE tesla_energy_gateway_operating_in_backup_only_mode gauge
+tesla_energy_gateway_operating_in_backup_only_mode 0
+# HELP tesla_energy_gateway_operating_in_self_consumption_mode if 1, the powerwalls cycle between charging and discharing
+# TYPE tesla_energy_gateway_operating_in_self_consumption_mode gauge
+tesla_energy_gateway_operating_in_self_consumption_mode 1
+# HELP tesla_energy_gateway_powerwall_charge_percent percent of nominal powerwall power available for supply generation
+# TYPE tesla_energy_gateway_powerwall_charge_percent gauge
+tesla_energy_gateway_powerwall_charge_percent 87.5
+# HELP tesla_energy_gateway_release_version The release version of the software in the Tesla energy gateway.  In version 1.2.3, the release version is the 3
+# TYPE tesla_energy_gateway_release_version gauge
+tesla_energy_gateway_release_version 3
+# HELP tesla_energy_gateway_site_master_connected_to_tesla if 1, the site master can communicate with Tesla
+# TYPE tesla_energy_gateway_site_master_connected_to_tesla gauge
+tesla_energy_gateway_site_master_connected_to_tesla 1
+# HELP tesla_energy_gateway_site_master_supplying_power if 1, the site master is supplying power instead of the grid
+# TYPE tesla_energy_gateway_site_master_supplying_power gauge
+tesla_energy_gateway_site_master_supplying_power 0
+# HELP tesla_energy_gateway_sitemaster_running if 1, the site master is running
+# TYPE tesla_energy_gateway_sitemaster_running gauge
+tesla_energy_gateway_sitemaster_running 1
+# HELP tesla_energy_gateway_total_solar_rating_W rated total power output of all solar arrays connected to the inverter
+# TYPE tesla_energy_gateway_total_solar_rating_W gauge
+tesla_energy_gateway_total_solar_rating_W 11400
+# HELP tesla_energy_gateway_uptime_seconds Runtime of the Tesla energy gateway
+# TYPE tesla_energy_gateway_uptime_seconds gauge
+tesla_energy_gateway_uptime_seconds 518072.539257895

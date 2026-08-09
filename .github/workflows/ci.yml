@@ -18,13 +18,13 @@ jobs:
         with:
           go-version: stable
 
-      # This repo predates Go modules and has no go.mod.  Synthesize one
-      # at CI time so the module-mode toolchain can resolve the
-      # dependencies; nothing is committed.
-      - name: Synthesize module
+      # The module is stdlib-only by policy (docs/STDLIB_PORT_PLAN.md):
+      # if tidy wants to add a require, a third-party import crept in.
+      - name: Verify stdlib-only
         run: |
-          go mod init github.com/jeffbstewart/powerwall_prometheus_exporter
           go mod tidy
+          git diff --exit-code go.mod
+          test ! -f go.sum
 
       - name: Build
         run: go build ./...

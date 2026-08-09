@@ -16,8 +16,18 @@ code.
 It is based loosely on
 [jrester's tesla_powerwall Python library](https://github.com/jrester/tesla_powerwall).
 
-# Known Issues
+# Building and running
 
-The timezone reported from GetSiteInfo()
-might be nil if the go development environment
-is not installed on the local machine.
+The program is stdlib-only Go: `go build` with
+no dependencies to fetch.  A `Dockerfile` builds
+a static binary on a `scratch` base image.
+
+Connection parameters come from flags or the
+environment: `--gateway` (`$TEG_ADDRESS`),
+`--customer_username` (`$TEG_EMAIL`), and
+`--password` (`$TEG_PASSWORD`).  Metrics are
+served on `--port` (default 5678) at `/metrics`,
+named `<namespace>_<subsystem>_*` per
+`--prometheus_namespace` (default `tesla`) and
+`--prometheus_subsystem` (default
+`energy_gateway`).
