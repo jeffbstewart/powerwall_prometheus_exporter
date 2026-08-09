@@ -26,6 +26,16 @@ func TestClientAgainstFakeGateway(t *testing.T) {
 	}
 	defer mon.Close()
 
+	si, err := mon.GetSiteInfo()
+	if err != nil {
+		t.Fatalf("GetSiteInfo(): %v", err)
+	}
+	// Regression: newer firmware reports the capacity fields with
+	// fractional parts; they must decode as floats.
+	if got, want := si.MaxSystemEnergykWh, 40.5; got != want {
+		t.Errorf("si.MaxSystemEnergykWh: got %v, want %v", got, want)
+	}
+
 	status, err := mon.GetStatus()
 	if err != nil {
 		t.Fatalf("GetStatus(): %v", err)

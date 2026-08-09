@@ -191,9 +191,9 @@ func (m *monitor) GetNetworks() ([]Network, error) {
 }
 
 type GridCode struct {
-	Code         string `json:"grid_code"` // "60Hz_240V_s_UL1741SA:2018_ISO-NE"
-	Voltage      int    `json:"grid_voltage_setting"`
-	Frequency    int    `json:"grid_freq_setting"`
+	Code         string  `json:"grid_code"` // "60Hz_240V_s_UL1741SA:2018_ISO-NE"
+	Voltage      float64 `json:"grid_voltage_setting"`
+	Frequency    float64 `json:"grid_freq_setting"`
 	PhaseSetting string `json:"grid_phase_setting"` // "Split
 	Country      string `json:"country"`
 	State        string `json:"state"`
@@ -208,12 +208,15 @@ type GridCode struct {
 }
 
 type SiteInfo struct {
-	MaxSystemEnergykWh     int64    `json:"max_system_energy_kWh"`
-	MaxSystemPowerkW       int64    `json:"max_system_power_kW"`
+	// The capacity fields arrive as JSON numbers that newer gateway
+	// firmware reports with fractional parts (e.g. 40.5 kWh), so they
+	// must decode as floats.
+	MaxSystemEnergykWh     float64  `json:"max_system_energy_kWh"`
+	MaxSystemPowerkW       float64  `json:"max_system_power_kW"`
 	SiteName               string   `json:"site_name"`
 	TimeZone               TimeZone `json:"timezone"`
-	MaxSiteMeterPowerkW    int64    `json:"max_site_meter_power_kW"`
-	MinSiteMeterPowerkW    int64    `json:"min_site_meter_power_kW"`
+	MaxSiteMeterPowerkW    float64  `json:"max_site_meter_power_kW"`
+	MinSiteMeterPowerkW    float64  `json:"min_site_meter_power_kW"`
 	NominalSystemEnergykWh float64  `json:"nominal_system_energy_kWh"`
 	NominalSystemPowerkW   float64  `json:"nominal_system_power_kW"`
 	GridCode               GridCode `json:"grid_code"`
