@@ -2,17 +2,24 @@ package main
 
 import (
 	"flag"
-	"github.com/golang/glog"
+	"log"
+	"os"
+	"time"
+	// The gateway reports its timezone by name; embed the tzdata so it
+	// still decodes on machines and images without a zoneinfo database.
+	_ "time/tzdata"
+
 	"github.com/jeffbstewart/powerwall_prometheus_exporter/controller"
 	"github.com/jeffbstewart/powerwall_prometheus_exporter/powerwall"
 	"github.com/jeffbstewart/powerwall_prometheus_exporter/view"
-	"time"
 )
 
+// The connection flags default from the environment (the deployment's
+// convention, and it keeps the password out of the process list).
 var (
-	gateway          = flag.String("gateway", "", "hostname or IP address of the Tesla Energy Gateway")
-	customerUsername = flag.String("customer_username", "", "username to log in with")
-	password         = flag.String("password", "", "password to log in with")
+	gateway          = flag.String("gateway", os.Getenv("TEG_ADDRESS"), "hostname or IP address of the Tesla Energy Gateway (defaults to $TEG_ADDRESS)")
+	customerUsername = flag.String("customer_username", os.Getenv("TEG_EMAIL"), "username to log in with (defaults to $TEG_EMAIL)")
+	password         = flag.String("password", os.Getenv("TEG_PASSWORD"), "password to log in with (defaults to $TEG_PASSWORD)")
 	namespace        = flag.String("prometheus_namespace", "tesla", "namespace to export stats into")
 	subsystem        = flag.String("prometheus_subsystem", "energy_gateway", "subsystem to export stats into")
 	port             = flag.Int("port", 5678, "TCP port to expose /metrics interface on.")
@@ -22,13 +29,13 @@ var (
 func main() {
 	flag.Parse()
 	if *customerUsername == "" {
-		glog.Exit("You must provide --customer_username")
+		log.Fatal("You must provide --customer_username or set TEG_EMAIL")
 	}
 	if *password == "" {
-		glog.Exit("You must provide --password")
+		log.Fatal("You must provide --password or set TEG_PASSWORD")
 	}
 	if *gateway == "" {
-		glog.Exit("You must provide the address for --gateway")
+		log.Fatal("You must provide the address for --gateway or set TEG_ADDRESS")
 	}
 	opts := controller.Options{
 		Powerwall: powerwall.Options{
@@ -44,6 +51,6 @@ func main() {
 		PollInterval: *pollInterval,
 	}
 	if err := controller.Run(opts); err != nil {
-		glog.Exitf("controller.Run(): %v", err)
+		log.Fatalf("controller.Run(): %v", err)
 	}
 }

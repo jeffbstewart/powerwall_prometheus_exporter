@@ -2,7 +2,7 @@ package http
 
 import (
 	"fmt"
-	"github.com/golang/glog"
+	"log"
 	"net/http"
 )
 
@@ -10,6 +10,6 @@ import (
 func ServeMetrics(port int) error {
 	http.Handle("/", http.RedirectHandler("/metrics", 302))
 	addr := fmt.Sprintf(":%d", port)
-	glog.Infof("Serving metrics on port %d at /metrics", port)
+	log.Printf("Serving metrics on port %d at /metrics", port)
 	return http.ListenAndServe(addr, nil) // blocks normally.
 }

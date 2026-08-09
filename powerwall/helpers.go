@@ -3,7 +3,7 @@ package powerwall
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/golang/glog"
+	"log"
 	"math"
 	"regexp"
 	"strconv"
@@ -28,7 +28,7 @@ func (t *TimeZone) UnmarshalJSON(b []byte) error {
 		// this is failing the whole shebang when run on a machine
 		// without go installed.  Just log it and live without
 		// knowing the timezone.
-		glog.Errorf("The server reports timezone %q, but we can't decode it because: %v", s, err)
+		log.Printf("ERROR: The server reports timezone %q, but we can't decode it because: %v", s, err)
 		return nil
 	}
 	t.loc = ld

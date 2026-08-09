@@ -6,9 +6,8 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/glog"
 	"io"
-	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"time"
@@ -129,10 +128,10 @@ func (m *monitor) issueRequest(method HTTPMethod, endpoint string, payload inter
 	}
 	defer func() {
 		if err := hresp.Body.Close(); err != nil {
-			glog.Errorf("hresp.Body.Close(): %v", err)
+			log.Printf("ERROR: hresp.Body.Close(): %v", err)
 		}
 	}()
-	bodyBytes, err := ioutil.ReadAll(hresp.Body)
+	bodyBytes, err := io.ReadAll(hresp.Body)
 	if err != nil {
 		return fmt.Errorf("reading body of response: %v", err)
 	}
