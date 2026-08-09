@@ -93,8 +93,8 @@ func (fakeMonitor) GetNetworks() ([]Network, error) {
 }
 
 const fakeSiteInfoJSON = `{
-  "max_system_energy_kWh": 0,
-  "max_system_power_kW": 0,
+  "max_system_energy_kWh": 40.5,
+  "max_system_power_kW": 20.25,
   "site_name": "Fake Home",
   "timezone": "America/New_York",
   "max_site_meter_power_kW": 1000000000,
