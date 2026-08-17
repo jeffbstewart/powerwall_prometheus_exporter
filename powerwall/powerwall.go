@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
+	"sync"
 	"time"
 )
 
@@ -84,6 +86,25 @@ type monitor struct {
 	cli       *http.Client
 	opts      Options
 	authToken string
+
+	mu                  sync.Mutex
+	reloginBlockedUntil time.Time
+}
+
+// kReloginBackoff is how long to wait after a failed re-login before
+// trying again: the gateway locks the account after a burst of failed
+// logins, so a persistent auth error must not retry on every scrape.
+const kReloginBackoff = 5 * time.Minute
+
+// httpStatusError reports a non-200 response from the gateway.
+type httpStatusError struct {
+	method   HTTPMethod
+	endpoint string
+	code     int
+}
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("%s %s: got status code %d, want 200", e.method, e.endpoint, e.code)
 }
 
 const kCustomer = "customer"
@@ -123,20 +144,54 @@ func (m *monitor) issueRequest(method HTTPMethod, endpoint string, payload inter
 	if err != nil {
 		return fmt.Errorf("c.cli.Do(): %v", err)
 	}
-	if got, want := hresp.StatusCode, 200; got != want {
-		return fmt.Errorf("basic login: got status code %d, want %d", got, want)
-	}
 	defer func() {
 		if err := hresp.Body.Close(); err != nil {
 			log.Printf("ERROR: hresp.Body.Close(): %v", err)
 		}
 	}()
+	if got := hresp.StatusCode; got != 200 {
+		return &httpStatusError{method: method, endpoint: endpoint, code: got}
+	}
 	bodyBytes, err := io.ReadAll(hresp.Body)
 	if err != nil {
 		return fmt.Errorf("reading body of response: %v", err)
 	}
 	if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(response); err != nil {
 		return fmt.Errorf("json Decode server response at endpoint %s: %v\nResponse:\n%s", endpoint, err, string(bodyBytes))
+	}
+	return nil
+}
+
+// issueAuthed issues a request that needs a logged-in session.  The
+// gateway drops every session when it reboots (e.g. for a firmware
+// update) and answers 403 from then on, so on 401/403 this logs in
+// again and retries the request once.
+func (m *monitor) issueAuthed(method HTTPMethod, endpoint string, payload interface{}, response interface{}) error {
+	err := m.issueRequest(method, endpoint, payload, response)
+	var httpErr *httpStatusError
+	if !errors.As(err, &httpErr) {
+		return err
+	}
+	if httpErr.code != http.StatusUnauthorized && httpErr.code != http.StatusForbidden {
+		return err
+	}
+	if lerr := m.relogin(); lerr != nil {
+		return fmt.Errorf("%v; re-login: %v", err, lerr)
+	}
+	log.Printf("Re-authenticated to the gateway after %v", err)
+	return m.issueRequest(method, endpoint, payload, response)
+}
+
+func (m *monitor) relogin() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if now := time.Now(); now.Before(m.reloginBlockedUntil) {
+		return fmt.Errorf("suppressed for another %s after a failed login",
+			m.reloginBlockedUntil.Sub(now).Round(time.Second))
+	}
+	if err := m.login(); err != nil {
+		m.reloginBlockedUntil = time.Now().Add(kReloginBackoff)
+		return err
 	}
 	return nil
 }
@@ -184,7 +239,7 @@ type Network struct {
 
 func (m *monitor) GetNetworks() ([]Network, error) {
 	var resp []Network
-	if err := m.issueRequest(kGet, "/networks", nil, &resp); err != nil {
+	if err := m.issueAuthed(kGet, "/networks", nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -194,13 +249,13 @@ type GridCode struct {
 	Code         string  `json:"grid_code"` // "60Hz_240V_s_UL1741SA:2018_ISO-NE"
 	Voltage      float64 `json:"grid_voltage_setting"`
 	Frequency    float64 `json:"grid_freq_setting"`
-	PhaseSetting string `json:"grid_phase_setting"` // "Split
-	Country      string `json:"country"`
-	State        string `json:"state"`
-	Distributor  string `json:"distributor"` // *
-	Utility      string `json:"utility"`     // Eversource Energy (NSTAR-Cambridge Electric Light)
-	Retailer     string `json:"retailer"`    // *
-	Region       string `json:"region"`      // UL1741SA-IOS-NE:2018
+	PhaseSetting string  `json:"grid_phase_setting"` // "Split
+	Country      string  `json:"country"`
+	State        string  `json:"state"`
+	Distributor  string  `json:"distributor"` // *
+	Utility      string  `json:"utility"`     // Eversource Energy (NSTAR-Cambridge Electric Light)
+	Retailer     string  `json:"retailer"`    // *
+	Region       string  `json:"region"`      // UL1741SA-IOS-NE:2018
 	// can't determine the schema for overrides, so I'm ignoring it
 	// In my case, they reduced the frequency shift when the batteries are full to
 	// prevent problems with the UPS, so I see:
@@ -224,7 +279,7 @@ type SiteInfo struct {
 
 func (m *monitor) GetSiteInfo() (*SiteInfo, error) {
 	var resp SiteInfo
-	if err := m.issueRequest(kGet, "/site_info", nil, &resp); err != nil {
+	if err := m.issueAuthed(kGet, "/site_info", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -243,7 +298,7 @@ type Operation struct {
 
 func (m *monitor) GetOperation() (*Operation, error) {
 	var resp Operation
-	if err := m.issueRequest(kGet, "/operation", nil, &resp); err != nil {
+	if err := m.issueAuthed(kGet, "/operation", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -255,7 +310,7 @@ type Config struct {
 
 func (m *monitor) GetConfig() (*Config, error) {
 	var resp Config
-	if err := m.issueRequest(kGet, "/config", nil, &resp); err != nil {
+	if err := m.issueAuthed(kGet, "/config", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -308,7 +363,7 @@ type Powerwalls struct {
 
 func (m *monitor) GetPowerwalls() (*Powerwalls, error) {
 	var rval Powerwalls
-	if err := m.issueRequest(kGet, "/powerwalls", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/powerwalls", nil, &rval); err != nil {
 		return nil, err
 	}
 	return &rval, nil
@@ -331,7 +386,7 @@ type Status struct {
 
 func (m *monitor) GetStatus() (*Status, error) {
 	var rval Status
-	if err := m.issueRequest(kGet, "/status", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/status", nil, &rval); err != nil {
 		return nil, err
 	}
 	return &rval, nil
@@ -346,7 +401,7 @@ type SiteMaster struct {
 
 func (m *monitor) GetSiteMaster() (*SiteMaster, error) {
 	var rval SiteMaster
-	if err := m.issueRequest(kGet, "/sitemaster", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/sitemaster", nil, &rval); err != nil {
 		return nil, err
 	}
 	return &rval, nil
@@ -380,7 +435,7 @@ type Aggregates struct {
 
 func (m *monitor) GetAggregates() (*Aggregates, error) {
 	var rval Aggregates
-	if err := m.issueRequest(kGet, "/meters/aggregates", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/meters/aggregates", nil, &rval); err != nil {
 		return nil, err
 	}
 	return &rval, nil
@@ -392,7 +447,7 @@ type SOE struct {
 
 func (m *monitor) GetSOE() (*SOE, error) {
 	var rval SOE
-	if err := m.issueRequest(kGet, "/system_status/soe", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/system_status/soe", nil, &rval); err != nil {
 		return nil, err
 	}
 	return &rval, nil
@@ -405,7 +460,7 @@ type GridStatus struct {
 
 func (m *monitor) GetGridStatus() (*GridStatus, error) {
 	var rval GridStatus
-	if err := m.issueRequest(kGet, "/system_status/grid_status", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/system_status/grid_status", nil, &rval); err != nil {
 		return nil, err
 	}
 	return &rval, nil
@@ -419,7 +474,7 @@ type Solar struct {
 
 func (m *monitor) GetSolars() ([]Solar, error) {
 	var rval []Solar
-	if err := m.issueRequest(kGet, "/solars", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/solars", nil, &rval); err != nil {
 		return nil, err
 	}
 	return rval, nil
@@ -444,7 +499,7 @@ type Installer struct {
 
 func (m *monitor) GetInstaller() (*Installer, error) {
 	var rval Installer
-	if err := m.issueRequest(kGet, "/installer", nil, &rval); err != nil {
+	if err := m.issueAuthed(kGet, "/installer", nil, &rval); err != nil {
 		return nil, err
 	}
 	return &rval, nil

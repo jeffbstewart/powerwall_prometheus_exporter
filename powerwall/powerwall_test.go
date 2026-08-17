@@ -1,8 +1,10 @@
 package powerwall_test
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jeffbstewart/powerwall_prometheus_exporter/powerwall"
@@ -69,5 +71,121 @@ func TestClientAgainstFakeGateway(t *testing.T) {
 	}
 	if got, want := len(networks), 3; got != want {
 		t.Errorf("len(networks): got %d, want %d", got, want)
+	}
+}
+
+// sessionGateway wraps the fake gateway with session tracking: a login
+// establishes a session, dropSession simulates the gateway rebooting
+// (e.g. for a firmware update), and requests without a session get 403
+// the way the real gateway answers them.
+type sessionGateway struct {
+	inner http.Handler
+
+	mu           sync.Mutex
+	logins       int
+	sessionValid bool
+	failLogins   bool
+}
+
+func (g *sessionGateway) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	g.mu.Lock()
+	if req.URL.Path == "/api/login/Basic" {
+		g.logins++
+		if g.failLogins {
+			g.mu.Unlock()
+			rw.WriteHeader(http.StatusForbidden)
+			return
+		}
+		g.sessionValid = true
+		g.mu.Unlock()
+		g.inner.ServeHTTP(rw, req)
+		return
+	}
+	if !g.sessionValid {
+		g.mu.Unlock()
+		rw.WriteHeader(http.StatusForbidden)
+		return
+	}
+	g.mu.Unlock()
+	g.inner.ServeHTTP(rw, req)
+}
+
+func (g *sessionGateway) dropSession(failLogins bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.sessionValid = false
+	g.failLogins = failLogins
+}
+
+func (g *sessionGateway) loginCount() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.logins
+}
+
+// TestReloginAfterSessionDrop covers the gateway invalidating every
+// session when it reboots: the client must log in again and retry
+// rather than fail every poll until the process restarts.
+func TestReloginAfterSessionDrop(t *testing.T) {
+	gw := &sessionGateway{inner: powerwall.NewFakeGatewayHandler()}
+	srv := httptest.NewTLSServer(gw)
+	defer srv.Close()
+
+	mon, err := powerwall.New(powerwall.Options{
+		Gateway:  strings.TrimPrefix(srv.URL, "https://"),
+		Username: "fake@example.com",
+		Password: "hunter2",
+	})
+	if err != nil {
+		t.Fatalf("powerwall.New(): %v", err)
+	}
+	defer mon.Close()
+
+	if _, err := mon.GetStatus(); err != nil {
+		t.Fatalf("GetStatus() before session drop: %v", err)
+	}
+
+	gw.dropSession(false)
+	if _, err := mon.GetStatus(); err != nil {
+		t.Fatalf("GetStatus() after session drop: %v", err)
+	}
+	if got, want := gw.loginCount(), 2; got != want {
+		t.Errorf("login count: got %d, want %d", got, want)
+	}
+}
+
+// TestReloginBackoff covers a session drop where re-login itself fails
+// (e.g. the password changed): the client must not hammer the login
+// endpoint on every poll, because the gateway locks the account after
+// repeated failed logins.
+func TestReloginBackoff(t *testing.T) {
+	gw := &sessionGateway{inner: powerwall.NewFakeGatewayHandler()}
+	srv := httptest.NewTLSServer(gw)
+	defer srv.Close()
+
+	mon, err := powerwall.New(powerwall.Options{
+		Gateway:  strings.TrimPrefix(srv.URL, "https://"),
+		Username: "fake@example.com",
+		Password: "hunter2",
+	})
+	if err != nil {
+		t.Fatalf("powerwall.New(): %v", err)
+	}
+	defer mon.Close()
+
+	gw.dropSession(true)
+	if _, err := mon.GetStatus(); err == nil {
+		t.Fatal("GetStatus() with failing logins: got nil error, want error")
+	}
+	if got, want := gw.loginCount(), 2; got != want {
+		t.Fatalf("login count after failed re-login: got %d, want %d", got, want)
+	}
+
+	// The next poll must NOT try another login while the backoff holds.
+	if _, err := mon.GetStatus(); err == nil {
+		t.Fatal("GetStatus() during backoff: got nil error, want error")
+	}
+	if got, want := gw.loginCount(), 2; got != want {
+		t.Errorf("login count during backoff: got %d, want %d", got, want)
 	}
 }
