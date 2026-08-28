@@ -2,7 +2,8 @@
 # no shell, no libc, no third-party code in the trust path.
 # Builder tracks the newest Go major: only the two most recent majors
 # get security fixes, so this must not linger on an aged-out version.
-FROM golang:1.25 AS build
+# golang:1.26 as of 2026-08-27
+FROM golang:1.26@sha256:dc2521c2a906db43073b8b4d99f491b6341cf15610b6ebbab187c45153f9959e AS build
 WORKDIR /src
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /powerwall_prometheus_exporter .

@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version-file: go.mod
 
       # The module is stdlib-only by policy (docs/STDLIB_PORT_PLAN.md):
       # if tidy wants to add a require, a third-party import crept in.
