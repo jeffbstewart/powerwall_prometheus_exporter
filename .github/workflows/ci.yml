@@ -46,3 +46,40 @@ jobs:
         env:
           FORGE_LINT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: go run github.com/jeffbstewart/cloister/cmd/forge-lint@main -config .github/forge-lint.yaml -allow-unverified
+
+  image:
+    # Build the scratch image and push it to
+    # ghcr.io/jeffbstewart/powerwall_prometheus_exporter on pushes to
+    # main and version tags -- only after verify passes.  Uses the
+    # built-in GITHUB_TOKEN (no stored secret, so R6 zero-secrets
+    # holds; same rationale as keaexporter/ddnscheck).  The package
+    # inherits the public repo's visibility.  Consumer: the homenet
+    # k8s cell runs this exporter (SHA-pinned pull), replacing the
+    # NAS-local registry build.
+    needs: [verify]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
