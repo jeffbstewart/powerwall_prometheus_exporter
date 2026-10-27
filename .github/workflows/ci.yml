@@ -32,6 +32,11 @@ jobs:
       - name: Test
         run: go test ./...
 
+      # The PR gate for the scheduled scan in vulns.yml: a change that
+      # is known-vulnerable is unmergeable, not merely flagged tomorrow.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
       - name: Vet
         run: go vet ./...
 
