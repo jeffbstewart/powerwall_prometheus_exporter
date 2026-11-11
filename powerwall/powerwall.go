@@ -253,12 +253,12 @@ type GridCode struct {
 	Country      string  `json:"country"`
 	State        string  `json:"state"`
 	Distributor  string  `json:"distributor"` // *
-	Utility      string  `json:"utility"`     // Eversource Energy (NSTAR-Cambridge Electric Light)
+	Utility      string  `json:"utility"`     // the utility's name
 	Retailer     string  `json:"retailer"`    // *
 	Region       string  `json:"region"`      // UL1741SA-IOS-NE:2018
 	// can't determine the schema for overrides, so I'm ignoring it
-	// In my case, they reduced the frequency shift when the batteries are full to
-	// prevent problems with the UPS, so I see:
+	// Some utilities reduce the frequency shift when the batteries are full,
+	// which arrives as an override such as:
 	// "grid_code_overrides":[{"name":"soc_freq_droop_config_df_max","value":2.5}]
 }
 
