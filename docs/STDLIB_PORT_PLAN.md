@@ -1,11 +1,11 @@
 # Plan: strip to the Go standard library, deploy alongside the incumbent
 
-Status: handoff plan (2026-08-09). Written by the homenet/monitoring
-operator session; to be executed by a Claude instance spawned in this
+Status: handoff plan (2026-08-09). Written from the operator's
+monitoring stack; to be executed by a Claude instance spawned in this
 repository. Downstream deployment steps (marked DOWNSTREAM) happen in
-the `jeff/monitoring` gitea repo and are NOT this instance's job --
-they are recorded here only so you understand the contract you must
-preserve.
+the operator's private monitoring configuration and are NOT this
+instance's job -- they are recorded here only so you understand the
+contract you must preserve.
 
 ## Why
 
@@ -17,22 +17,22 @@ Two motivations, one hard constraint.
    collapses it to nothing: `FROM scratch` + one file, zero third-party
    code in the trust path.
 2. **This repo is the canonical exporter but is NOT what's deployed.**
-   Production currently runs an unrelated ~120-line Python
-   reimplementation (`powerwall_exporter/exporter.py` in the monitoring
-   repo) that exposes six flat metrics. This Go program exposes a far
-   richer set. The homenet operator has chosen to make THIS program the
-   deployed exporter (option A: "Go wins, align the consumers").
+   The operator's monitoring stack currently runs an unrelated small
+   Python reimplementation (the existing exporter) that exposes six
+   flat metrics. This Go program exposes a far richer set. The
+   operator has chosen to make THIS program the deployed exporter
+   (option A: "Go wins, align the consumers").
 
-**Hard constraint — do not break the grid page.** The operator is
-paged today when the grid drops, via a Prometheus alert on the Python
-metric `powerwall_grid_up`. This program does not emit that name. The
-rollout is therefore PARALLEL-RUN: your Go binary stands up on a new
-port next to the still-running Python exporter; Prometheus scrapes both
-for ~12h to accumulate history under the new metric names; only then
-(DOWNSTREAM) are the dashboard and alerts migrated and the Python
-exporter retired. Your job is the binary and its image. Preserve the
-metric contract below EXACTLY so the downstream migration targets a
-stable set.
+**Hard constraint -- do not break the existing alerts.** The
+operator's alerting is built on the existing exporter's metric names
+(for example `powerwall_grid_up`). This program does not emit those
+names. The rollout is therefore PARALLEL-RUN: your Go binary stands
+up on a new port next to the still-running existing exporter;
+Prometheus scrapes both long enough to accumulate history under the
+new metric names; only then (DOWNSTREAM) are the dashboard and alerts
+migrated and the existing exporter retired. Your job is the binary and
+its image. Preserve the metric contract below EXACTLY so the
+downstream migration targets a stable set.
 
 ## Current state of this repo
 
@@ -128,10 +128,10 @@ renderer. Keep `PollEngine.ServeHTTP`'s poll-then-render-or-500 shape.
 
 The binary currently requires flags (`--gateway`,
 `--customer_username`, `--password`) and defaults `--port=5678`. The
-deployment configures via environment variables (the Python exporter's
-convention, and better than a password on the command line where `ps`
-sees it). Make the three connection flags default from env, so both
-work and the compose can keep passing env vars:
+deployment configures via environment variables (the existing
+exporter's convention, and better than a password on the command line
+where `ps` sees it). Make the three connection flags default from env,
+so both work and the deployment can keep passing env vars:
 
 ```go
 gateway := flag.String("gateway", os.Getenv("TEG_ADDRESS"), "…")
@@ -194,26 +194,25 @@ Label domains (exact values -- note the surprising one):
 - `interface`: `powerwall.NetworkInterface.String()` (see
   `powerwall/enums.go`).
 
-## Boundary: what happens after you (DOWNSTREAM, monitoring repo)
+## Boundary: what happens after you (DOWNSTREAM, monitoring stack)
 
-You produce a pushed image `localhost:15000/powerwall-exporter:<tag>`
-(coordinate the tag + digest with the operator; the registry is
-digest-pinned). The operator then, in `jeff/monitoring`:
+You produce a pushed, digest-pinned image (coordinate the tag + digest
+with the operator). The operator then, in the monitoring stack:
 
-1. Adds a SECOND service `powerwall-exporter-go` on host port 9873,
-   `--port=9873`, same `TEG_*` env, digest-pinned. Python stays on
-   9872.
-2. Adds a Prometheus scrape job for `:9873`. Both run in parallel.
-3. Waits ~12h so the new `tesla_energy_gateway_*` series have history.
-4. Migrates the consumers, then retires the Python exporter:
-   - Dashboard panels and the two alerts move to the new names.
-   - `PowerwallGridDown`: `powerwall_grid_up == 0` becomes
+1. Adds a SECOND exporter service on a new port, same env, digest-
+   pinned. The existing exporter stays where it is.
+2. Adds a Prometheus scrape job for the new port. Both run in parallel.
+3. Waits until the new `tesla_energy_gateway_*` series have enough
+   history.
+4. Migrates the consumers, then retires the existing exporter:
+   - Dashboard panels and the alerts move to the new names.
+   - Grid-down alerting: `powerwall_grid_up == 0` becomes
      `tesla_energy_gateway_grid_connected == 0`. (Nuance to verify:
      this program distinguishes `grid_connected` "available to supply"
      from `grid_active` "actively supplying"; `grid_connected` is the
-     faithful analog of the Python `grid_up`. Confirm against a real
-     islanding event or the 12h history before trusting the page.)
-   - `PowerwallBatteryLow`: `powerwall_battery_percentage < 20` becomes
+     faithful analog of the existing `grid_up`. Confirm against a real
+     islanding event or the parallel-run history before trusting it.)
+   - Battery-low alerting: `powerwall_battery_percentage < 20` becomes
      `tesla_energy_gateway_powerwall_charge_percent < 20`.
 
 ### Consumer mapping (for the downstream migration)

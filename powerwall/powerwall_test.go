@@ -34,7 +34,7 @@ func TestClientAgainstFakeGateway(t *testing.T) {
 	}
 	// Regression: newer firmware reports the capacity fields with
 	// fractional parts; they must decode as floats.
-	if got, want := si.MaxSystemEnergykWh, 40.5; got != want {
+	if got, want := si.MaxSystemEnergykWh, 28.5; got != want {
 		t.Errorf("si.MaxSystemEnergykWh: got %v, want %v", got, want)
 	}
 

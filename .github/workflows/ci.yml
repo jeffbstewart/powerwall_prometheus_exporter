@@ -1,4 +1,4 @@
-# The presubmit suite (cloister docs/grange.md R3): the "verify" check
+# The presubmit suite (forge-lint docs/requirements.md R3): the "verify" check
 # the main ruleset requires.  Zero secrets by policy (R6) — the forge
 # lint audits Actions secrets to empty.
 name: ci
@@ -40,7 +40,7 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      # The forge's own merge-path protections (cloister docs/grange.md
+      # The forge's own merge-path protections (forge-lint docs/requirements.md
       # R1-R8), asserted against this repo's pinned expectations.  The
       # workflow token cannot read collaborator roles or Actions secrets,
       # so those report UNVERIFIED (-allow-unverified downgrades them to
@@ -50,7 +50,7 @@ jobs:
       - name: Forge lint (merge-path protections)
         env:
           FORGE_LINT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: go run github.com/jeffbstewart/cloister/cmd/forge-lint@main -config .github/forge-lint.yaml -allow-unverified
+        run: go run github.com/jeffbstewart/forge-lint/cmd/forge-lint@v0.1.0 -config .github/forge-lint.yaml -allow-unverified
 
   image:
     # Build the scratch image and push it to
@@ -58,9 +58,9 @@ jobs:
     # main and version tags -- only after verify passes.  Uses the
     # built-in GITHUB_TOKEN (no stored secret, so R6 zero-secrets
     # holds; same rationale as keaexporter/ddnscheck).  The package
-    # inherits the public repo's visibility.  Consumer: the homenet
-    # k8s cell runs this exporter (SHA-pinned pull), replacing the
-    # NAS-local registry build.
+    # inherits the public repo's visibility.  Consumer: the operator's
+    # monitoring stack runs this exporter from here (SHA-pinned pull)
+    # instead of from a locally built image.
     needs: [verify]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest

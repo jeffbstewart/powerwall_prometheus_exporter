@@ -1,16 +1,16 @@
 # HELP tesla_energy_gateway_backup_reserve_percent Percent of battery capacity not used unless the grid is out
 # TYPE tesla_energy_gateway_backup_reserve_percent gauge
-tesla_energy_gateway_backup_reserve_percent 20.5
+tesla_energy_gateway_backup_reserve_percent 25
 # HELP tesla_energy_gateway_cumulative_power cumulative power measured over the lifetime of the given meter, in units of kWh
 # TYPE tesla_energy_gateway_cumulative_power counter
-tesla_energy_gateway_cumulative_power{direction="from",meter="battery"} 5.1248902e+06
+tesla_energy_gateway_cumulative_power{direction="from",meter="battery"} 4e+06
 tesla_energy_gateway_cumulative_power{direction="from",meter="load"} 0
-tesla_energy_gateway_cumulative_power{direction="from",meter="site"} 4.74483861e+06
-tesla_energy_gateway_cumulative_power{direction="from",meter="solar"} 3.18193004e+07
-tesla_energy_gateway_cumulative_power{direction="to",meter="battery"} 6.1567809e+06
-tesla_energy_gateway_cumulative_power{direction="to",meter="load"} 2.587310944e+07
-tesla_energy_gateway_cumulative_power{direction="to",meter="site"} 1.246456655e+07
-tesla_energy_gateway_cumulative_power{direction="to",meter="solar"} 1305.7
+tesla_energy_gateway_cumulative_power{direction="from",meter="site"} 5e+06
+tesla_energy_gateway_cumulative_power{direction="from",meter="solar"} 3e+07
+tesla_energy_gateway_cumulative_power{direction="to",meter="battery"} 5e+06
+tesla_energy_gateway_cumulative_power{direction="to",meter="load"} 2e+07
+tesla_energy_gateway_cumulative_power{direction="to",meter="site"} 1.2e+07
+tesla_energy_gateway_cumulative_power{direction="to",meter="solar"} 1000
 # HELP tesla_energy_gateway_flattened_version The version of the software in the Tesla energy gateway, flattened.  Version 10.12.7 would be 10127
 # TYPE tesla_energy_gateway_flattened_version gauge
 tesla_energy_gateway_flattened_version 234403
@@ -77,7 +77,7 @@ tesla_energy_gateway_network_signal_strength{interface="wifi"} 0
 tesla_energy_gateway_nominal_system_energy_kWh 27
 # HELP tesla_energy_gateway_nominal_system_power_kW nominal rated power that can be delivered by the inverter.
 # TYPE tesla_energy_gateway_nominal_system_power_kW gauge
-tesla_energy_gateway_nominal_system_power_kW 10.8
+tesla_energy_gateway_nominal_system_power_kW 10
 # HELP tesla_energy_gateway_num_powerwalls Number of powerwall battery systems managed by the energy gateway
 # TYPE tesla_energy_gateway_num_powerwalls gauge
 tesla_energy_gateway_num_powerwalls 2
@@ -104,7 +104,7 @@ tesla_energy_gateway_site_master_supplying_power 0
 tesla_energy_gateway_sitemaster_running 1
 # HELP tesla_energy_gateway_total_solar_rating_W rated total power output of all solar arrays connected to the inverter
 # TYPE tesla_energy_gateway_total_solar_rating_W gauge
-tesla_energy_gateway_total_solar_rating_W 11400
+tesla_energy_gateway_total_solar_rating_W 7600
 # HELP tesla_energy_gateway_uptime_seconds Runtime of the Tesla energy gateway
 # TYPE tesla_energy_gateway_uptime_seconds gauge
 tesla_energy_gateway_uptime_seconds 518072.539257895

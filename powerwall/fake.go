@@ -93,25 +93,25 @@ func (fakeMonitor) GetNetworks() ([]Network, error) {
 }
 
 const fakeSiteInfoJSON = `{
-  "max_system_energy_kWh": 40.5,
-  "max_system_power_kW": 20.25,
+  "max_system_energy_kWh": 28.5,
+  "max_system_power_kW": 14,
   "site_name": "Fake Home",
   "timezone": "America/New_York",
   "max_site_meter_power_kW": 1000000000,
   "min_site_meter_power_kW": -1000000000,
   "nominal_system_energy_kWh": 27,
-  "nominal_system_power_kW": 10.8,
+  "nominal_system_power_kW": 10,
   "grid_code": {
-    "grid_code": "60Hz_240V_s_UL1741SA:2018_ISO-NE",
+    "grid_code": "60Hz_240V_s_Fake_Grid",
     "grid_voltage_setting": 240,
     "grid_freq_setting": 60,
     "grid_phase_setting": "Split",
     "country": "United States",
-    "state": "Massachusetts",
+    "state": "Fakestate",
     "distributor": "*",
-    "utility": "Eversource Energy (NSTAR-Cambridge Electric Light)",
+    "utility": "Fake Power & Light",
     "retailer": "*",
-    "region": "UL1741SA-ISO-NE:2018"
+    "region": "Fake_Grid:2018"
   }
 }`
 
@@ -125,9 +125,9 @@ func (fakeMonitor) GetSiteInfo() (*SiteInfo, error) {
 
 const fakeOperationJSON = `{
   "real_mode": "self_consumption",
-  "backup_reserve_percent": 20.5,
-  "freq_shift_load_shed_soe": 65,
-  "freq_shift_load_shed_delta_f": -0.32
+  "backup_reserve_percent": 25,
+  "freq_shift_load_shed_soe": 70,
+  "freq_shift_load_shed_delta_f": -0.3
 }`
 
 func (fakeMonitor) GetOperation() (*Operation, error) {
@@ -256,8 +256,8 @@ const fakeAggregatesJSON = `{
     "instant_reactive_power": -401.2,
     "instant_apparant_power": 845.1,
     "frequency": 60.02,
-    "energy_exported": 4744838.61,
-    "energy_imported": 12464566.55,
+    "energy_exported": 5000000,
+    "energy_imported": 12000000,
     "instant_average_voltage": 246.35,
     "instant_total_current": 3.02,
     "i_a_current": 0,
@@ -273,8 +273,8 @@ const fakeAggregatesJSON = `{
     "instant_reactive_power": 20.5,
     "instant_apparant_power": 2350.09,
     "frequency": 60,
-    "energy_exported": 5124890.2,
-    "energy_imported": 6156780.9,
+    "energy_exported": 4000000,
+    "energy_imported": 5000000,
     "instant_average_voltage": 245.9,
     "instant_total_current": -9.6,
     "i_a_current": 0,
@@ -291,7 +291,7 @@ const fakeAggregatesJSON = `{
     "instant_apparant_power": 1902.35,
     "frequency": 60.02,
     "energy_exported": 0,
-    "energy_imported": 25873109.44,
+    "energy_imported": 20000000,
     "instant_average_voltage": 246.1,
     "instant_total_current": 7.7,
     "i_a_current": 0,
@@ -307,8 +307,8 @@ const fakeAggregatesJSON = `{
     "instant_reactive_power": -50.4,
     "instant_apparant_power": 3500.61,
     "frequency": 60.01,
-    "energy_exported": 31819300.4,
-    "energy_imported": 1305.7,
+    "energy_exported": 30000000,
+    "energy_imported": 1000,
     "instant_average_voltage": 246.4,
     "instant_total_current": 14.2,
     "i_a_current": 0,
@@ -353,14 +353,14 @@ func (fakeMonitor) GetGridStatus() (*GridStatus, error) {
 
 const fakeSolarsJSON = `[
   {
-    "brand": "SolarEdge Technologies",
-    "model": "SE7600H-US (240V)",
-    "power_rating_watts": 7600
+    "brand": "Fake Inverter Co",
+    "model": "Inverter Model A (240V)",
+    "power_rating_watts": 5000
   },
   {
-    "brand": "SolarEdge Technologies",
-    "model": "SE3800H-US (240V)",
-    "power_rating_watts": 3800
+    "brand": "Fake Inverter Co",
+    "model": "Inverter Model B (240V)",
+    "power_rating_watts": 2600
   }
 ]`
 
@@ -380,7 +380,7 @@ const fakeInstallerJSON = `{
   "location": "",
   "mounting": "",
   "wiring": "",
-  "backup_configuration": "Whole Home",
+  "backup_configuration": "Partial Home",
   "solar_installation": "New",
   "has_stack_kit": false,
   "has_powerline_to_ethernet": false,
